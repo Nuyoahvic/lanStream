@@ -8,23 +8,25 @@
 #include <map>
 #include <vector>
 
-class UdpReceiver {
+class UdpReceiver
+{
 public:
     using PacketCallback = std::function<void(EncodedPacketPtr)>;
-    ~UdpReceiver() { stop(); }
+    ~UdpReceiver();
     bool init(uint16_t port);
     bool start(PacketCallback cb);
     void stop();
 private:
     void recv_loop(PacketCallback cb);
 
-    struct FrameAsm {
+    struct FrameAsm
+            {
         uint32_t frame_id    = 0;
         uint64_t ts          = 0;
         uint8_t  keyframe    = 0;
         uint16_t expect      = 0;
         std::map<uint16_t, std::vector<uint8_t>> chunks;
-        bool complete() const { return expect > 0 && chunks.size() == expect; }
+        bool complete() const;
     };
 
     int               sock_  = -1;

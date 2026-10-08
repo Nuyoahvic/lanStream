@@ -6,14 +6,15 @@
 #include <thread>
 #include <atomic>
 
-class CaptureX11 : public ICapture {
+class CaptureX11 : public ICapture
+{
 public:
-    ~CaptureX11() override { stop(); }
+    ~CaptureX11() override;
     bool init(int display_index = 0) override;
     bool start(FrameCallback cb)     override;
     void stop()                      override;
-    int  width()  const override { return width_;  }
-    int  height() const override { return height_; }
+    int  width()  const override;
+    int  height() const override;
 private:
     void capture_loop(FrameCallback cb);
     Display*          dpy_      = nullptr;

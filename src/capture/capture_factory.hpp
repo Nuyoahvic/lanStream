@@ -10,7 +10,8 @@
 #  include "capture_x11.hpp"
 #endif
 
-inline std::unique_ptr<ICapture> create_capture() {
+inline std::unique_ptr<ICapture> create_capture()
+{
 #ifdef PLATFORM_WINDOWS
     return std::make_unique<CaptureDXGI>();
 #elif defined(PLATFORM_MACOS)

@@ -1,4 +1,0 @@
-/Users/weiqi/Desktop/lanStream/build/CMakeFiles/sender.dir
-/Users/weiqi/Desktop/lanStream/build/CMakeFiles/receiver.dir
-/Users/weiqi/Desktop/lanStream/build/CMakeFiles/edit_cache.dir
-/Users/weiqi/Desktop/lanStream/build/CMakeFiles/rebuild_cache.dir

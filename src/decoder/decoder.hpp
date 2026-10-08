@@ -2,7 +2,8 @@
 #include "common/frame.hpp"
 #include <functional>
 
-class IDecoder {
+class IDecoder
+{
 public:
     using FrameCallback = std::function<void(RawFramePtr)>;
     virtual ~IDecoder() = default;

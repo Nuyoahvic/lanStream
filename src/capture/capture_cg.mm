@@ -29,16 +29,16 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 }
 @end
 
-// 内部实现结构体，封装Objective-C对象
+// Internal implementation struct, encapsulating an Objective-C object
 struct CaptureCG::Impl {
     SCStream* stream = nil;
     SCStreamConfiguration* config = nil;
     SCDisplay* selectedDisplay = nil;
 };
 
-// 匿名命名空间，避免符号冲突
+// Anonymous namespace to avoid symbol conflicts
 namespace {
-    // 查找指定索引的显示器
+    // Find the monitor at the specified index
     SCDisplay* findDisplayByIndex(int index) {
         __block SCDisplay* targetDisplay = nil;
         __block int counter = 0;
@@ -47,7 +47,7 @@ namespace {
         [SCShareableContent getShareableContentWithCompletionHandler:
          ^(SCShareableContent *content, NSError *error) {
             if (error) {
-                NSLog(@"获取共享内容失败: %@", error);
+                NSLog(@"Failed to retrieve shared content: %@", error);
                 done = true;
                 return;
             }
@@ -98,16 +98,16 @@ CaptureCG::~CaptureCG() {
 
 bool CaptureCG::init(int display_index) {
     if (display_index < 0) {
-        NSLog(@"无效的显示器索引: %d", display_index);
+        NSLog(@"Invalid monitor index: %d", display_index);
         return false;
     }
 
     display_index_ = display_index;
 
-    // 这里只用 display.width/height 做一个“逻辑尺寸”占位，真正像素在 start 里用 contentRect 计算
+    // Here, display.width/height are used merely as placeholders for "logical dimensions"; the actual pixel values ​​are calculated in start() using contentRect.
     SCDisplay* display = findDisplayByIndex(display_index_);
     if (!display) {
-        NSLog(@"未找到显示器 index=%d", display_index_);
+        NSLog(@"Monitor not found index=%d", display_index_);
         return false;
     }
 
@@ -117,7 +117,7 @@ bool CaptureCG::init(int display_index) {
         dwidth = (NSUInteger)display.width;
         dheight = (NSUInteger)display.height;
     } @catch (NSException *ex) {
-        NSLog(@"读取显示器尺寸时异常: %@", ex);
+        NSLog(@"Error reading monitor size: %@", ex);
     }
     CFRelease((__bridge CFTypeRef)display);
 
@@ -125,23 +125,23 @@ bool CaptureCG::init(int display_index) {
     height_ = (int)dheight;
 
     if (width_ <= 0 || height_ <= 0) {
-        NSLog(@"无效的显示器尺寸: %dx%d", width_, height_);
+        NSLog(@"Invalid monitor size: %dx%d", width_, height_);
         return false;
     }
 
-    NSLog(@"初始化显示器: 索引=%d, 尺寸(point)=%dx%d", display_index_, width_, height_);
+    NSLog(@"Initialize display: Index=%d, Size (point)=%dx%d", display_index_, width_, height_);
     return true;
 }
 
 bool CaptureCG::start(FrameCallback cb) {
     if (running_.load()) {
-        NSLog(@"捕获已在运行");
+        NSLog(@"Capture already running");
         return false;
     }
 
     if (width_ <= 0 || height_ <= 0) {
         if (!init(0)) {
-            NSLog(@"自动初始化显示器失败");
+            NSLog(@"Failed to automatically initialize the display.");
             return false;
         }
     }
@@ -153,21 +153,21 @@ bool CaptureCG::start(FrameCallback cb) {
         @autoreleasepool {
             std::unique_ptr<Impl> impl(new Impl());
 
-            // 1. 获取显示器
+            // 1. Get the display
             impl->selectedDisplay = findDisplayByIndex(display_index_);
             if (!impl->selectedDisplay) {
-                NSLog(@"线程中获取显示器失败");
+                NSLog(@"Failed to retrieve the display within the thread.");
                 running_.store(false);
                 return;
             }
 
-            // 2. 创建流配置
+            // 2. Create stream configuration
             impl->config = [[SCStreamConfiguration alloc] init];
             impl->config.width  = (size_t)width_;
             impl->config.height = (size_t)height_;
             impl->config.scalesToFit = NO;
             impl->config.preservesAspectRatio = YES;
-            impl->config.queueDepth = 2;          // 低延迟[web:27]
+            impl->config.queueDepth = 2;          // Low latency [web:27]
             impl->config.showsCursor = YES;
             impl->config.pixelFormat = kCVPixelFormatType_32BGRA;
             impl->config.colorSpaceName = kCGColorSpaceSRGB;
@@ -177,12 +177,12 @@ bool CaptureCG::start(FrameCallback cb) {
             Class streamClass = NSClassFromString(@"SCStream");
             Class filterClass = NSClassFromString(@"SCContentFilter");
             if (!streamClass || !filterClass) {
-                NSLog(@"当前系统不支持 ScreenCaptureKit");
+                NSLog(@"The current system does not support this. ScreenCaptureKit");
                 running_.store(false);
                 return;
             }
 
-            // 3. 构造 SCContentFilter（捕获整个 display）
+            // 3. Construct SCContentFilter (capture the entire display)
             __block NSArray<SCRunningApplication*>* allApps = nil;
             __block bool appsReady = false;
             [SCShareableContent getShareableContentWithCompletionHandler:
@@ -190,7 +190,7 @@ bool CaptureCG::start(FrameCallback cb) {
                 if (!err) {
                     allApps = content.applications;
                 } else {
-                    NSLog(@"获取应用列表失败: %@", err);
+                    NSLog(@"Failed to retrieve the application list: %@", err);
                 }
                 appsReady = true;
             }];
@@ -226,12 +226,12 @@ bool CaptureCG::start(FrameCallback cb) {
             }
 
             if (!contentFilter) {
-                NSLog(@"无法创建 SCContentFilter");
+                NSLog(@"Unable to create SCContentFilter");
                 running_.store(false);
                 return;
             }
 
-            // 4. 用 contentRect × pointPixelScale 设置真实像素分辨率[web:20][web:23]
+            // 4. Set the actual pixel resolution using contentRect × pointPixelScale [web:20][web:23]
             SCContentFilter *filter = (SCContentFilter *)contentFilter;
             CGFloat scale = filter.pointPixelScale;
             CGRect rect = filter.contentRect;
@@ -255,7 +255,7 @@ bool CaptureCG::start(FrameCallback cb) {
 #pragma clang diagnostic pop
             }
 
-            // 5. 创建 SCStream
+            // 5. Create SCStream
             SEL selInitFilterNoError =
                 NSSelectorFromString(@"initWithFilter:configuration:delegate:");
             id alloced = ((id (*)(Class, SEL))objc_msgSend)(
@@ -266,17 +266,17 @@ bool CaptureCG::start(FrameCallback cb) {
                 streamObj = ((id (*)(id, SEL, id, id, id))objc_msgSend)(
                     alloced, selInitFilterNoError, contentFilter, impl->config, nil);
             } else {
-                NSLog(@"SCStream 初始化方法不可用");
+                NSLog(@"SCStream initialization method is unavailable.");
             }
 
             impl->stream = (SCStream*)streamObj;
             if (!impl->stream) {
-                NSLog(@"创建SCStream失败");
+                NSLog(@"Failed to create SCStream.");
                 running_.store(false);
                 return;
             }
 
-            // 6. 添加视频输出
+            // 6. Add video output
             StreamOutputHandler* output = [[StreamOutputHandler alloc] init];
             __block Impl* implPtr = impl.get();
             output.captureHandler = ^(CMSampleBufferRef sampleBuffer,
@@ -291,7 +291,7 @@ bool CaptureCG::start(FrameCallback cb) {
                 OSType pixelFormat =
                     CVPixelBufferGetPixelFormatType(imageBuffer);
                 if (pixelFormat != kCVPixelFormatType_32BGRA) {
-                    NSLog(@"不支持的像素格式: %u", (unsigned int)pixelFormat);
+                    NSLog(@"Unsupported pixel format: %u", (unsigned int)pixelFormat);
                     return;
                 }
 
@@ -316,7 +316,7 @@ bool CaptureCG::start(FrameCallback cb) {
                     memcpy(frame->data.data(), baseAddress, dataSize);
 
                     if (cb_ && !frame->data.empty()) {
-                        cb_(std::move(frame));   // 编码+发送放在外面线程
+                        cb_(std::move(frame));   // Place encoding and sending in an external thread.
                     }
                 }
 
@@ -332,26 +332,26 @@ bool CaptureCG::start(FrameCallback cb) {
                                     sampleHandlerQueue:queue
                                                  error:&error];
             if (!success) {
-                NSLog(@"添加流输出失败: %@", error);
+                NSLog(@"Failed to add stream output: %@", error);
                 running_.store(false);
                 return;
             }
 
-            // 7. 开始捕获
+            // 7. Start capturing
             [impl->stream startCaptureWithCompletionHandler:
             ^(NSError* _Nullable err) {
                 if (err) {
-                    NSLog(@"开始捕获失败: %@", err);
+                    NSLog(@"Failed to start capture: %@", err);
                     running_.store(false);
                 } else {
-                    NSLog(@"屏幕捕获已开始, stream=%p, 像素尺寸: %zux%zu",
+                    NSLog(@"Screen capture started, stream=%p, pixel dimensions: %zux%zu",
                             (__bridge void*)implPtr->stream,
                             implPtr->config.width, implPtr->config.height);
 
                 }
             }];
 
-            // 8. 运行消息循环
+            // 8. Run the message loop
             NSRunLoop* runLoop = [NSRunLoop currentRunLoop];
             while (running_.load()) {
                 @autoreleasepool {
@@ -360,15 +360,15 @@ bool CaptureCG::start(FrameCallback cb) {
                 }
             }
 
-            // 9. 清理
-            NSLog(@"停止捕获...");
+            // 9. Cleanup
+            NSLog(@"Stop capturing...");
             if (impl->stream) {
                 [impl->stream stopCaptureWithCompletionHandler:
                  ^(NSError* _Nullable err) {
                     if (err) {
-                        NSLog(@"停止捕获时出错: %@", err);
+                        NSLog(@"Error while stopping capture: %@", err);
                     } else {
-                        NSLog(@"捕获已停止");
+                        NSLog(@"Capture stopped");
                     }
                 }];
                 impl->stream = nil;
@@ -377,7 +377,7 @@ bool CaptureCG::start(FrameCallback cb) {
                 CFRelease((__bridge CFTypeRef)impl->selectedDisplay);
                 impl->selectedDisplay = nil;
             }
-            NSLog(@"捕获线程退出");
+            NSLog(@"Capture thread exit");
         }
     });
 
@@ -386,7 +386,7 @@ bool CaptureCG::start(FrameCallback cb) {
     }
 
     if (!running_.load()) {
-        NSLog(@"捕获线程启动失败");
+        NSLog(@"Failed to start the capture thread.");
         if (thread_.joinable()) {
             thread_.join();
         }
@@ -399,7 +399,7 @@ bool CaptureCG::start(FrameCallback cb) {
 void CaptureCG::stop() {
     if (!running_.load()) return;
 
-    NSLog(@"正在停止捕获...");
+    NSLog(@"Stopping capture...");
     running_.store(false);
 
     if (thread_.joinable()) {
@@ -407,7 +407,7 @@ void CaptureCG::stop() {
     }
 
     cb_ = nullptr;
-    NSLog(@"捕获已完全停止");
+    NSLog(@"Capture has stopped completely.");
 }
 
 #endif // PLATFORM_MACOS

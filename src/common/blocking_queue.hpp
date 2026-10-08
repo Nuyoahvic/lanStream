@@ -5,9 +5,10 @@
 #include <optional>
 #include <chrono>
 
-// 用于解码线程 → 主渲染线程的帧传递；满时丢老帧保低延迟
+// For frame transfer from the decoding thread to the main rendering thread; drops old frames when full to maintain low latency.
 template<typename T>
-class BlockingQueue {
+class BlockingQueue
+{
     std::queue<T>           q_;
     std::mutex              mtx_;
     std::condition_variable cv_;

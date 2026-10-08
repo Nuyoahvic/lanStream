@@ -2,7 +2,8 @@
 #include "common/frame.hpp"
 #include <functional>
 
-class ICapture {
+class ICapture
+{
 public:
     using FrameCallback = std::function<void(RawFramePtr)>;
     virtual ~ICapture() = default;

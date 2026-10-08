@@ -2,13 +2,15 @@
 #include <cstdint>
 
 #pragma pack(push, 1)
-struct PacketHeader {
+
+struct PacketHeader
+{
     uint32_t magic;          // 0x4C534C41 "LSLA"
     uint32_t frame_id;
     uint64_t timestamp_us;
-    uint16_t chunk_index;    // 当前分片索引
-    uint16_t chunk_count;    // 该帧总分片数
-    uint32_t payload_size;   // 本分片 payload 字节数
+    uint16_t chunk_index;    // Current shard index
+    uint16_t chunk_count;    // Total number of fragments for this frame
+    uint32_t payload_size;   // Number of bytes in this fragment's payload
     uint8_t  is_keyframe;
     uint8_t  pad[3];
 };

@@ -3,9 +3,10 @@
 #include "renderer.hpp"
 #include <SDL2/SDL.h>
 
-class RendererSDL : public IRenderer {
+class RendererSDL : public IRenderer
+{
 public:
-    ~RendererSDL() override { cleanup(); }
+    ~RendererSDL() override;
     bool init(int w, int h, const char* title = "LanStream") override;
     bool render(RawFramePtr frame)                            override;
     bool poll_events()                                        override;

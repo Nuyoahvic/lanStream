@@ -4,10 +4,20 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cstring>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
-bool CaptureX11::init(int) {
+bool CaptureX11::init(int)
+{
     dpy_  = XOpenDisplay(nullptr);
-    if (!dpy_) { std::cerr << "XOpenDisplay failed\n"; return false; }
+
+    if (!dpy_)
+    {
+        std::cerr << "XOpenDisplay failed" << std::endl;
+        return false;
+    }
+
     int scr = DefaultScreen(dpy_);
     root_   = RootWindow(dpy_, scr);
     width_  = DisplayWidth(dpy_,  scr);
@@ -26,16 +36,40 @@ bool CaptureX11::init(int) {
     return true;
 }
 
-bool CaptureX11::start(FrameCallback cb) {
+int CaptureX11::width() const
+{
+    return width_;
+}
+
+int CaptureX11::height() const
+{
+    return height_;
+}
+
+bool CaptureX11::start(FrameCallback cb)
+{
     running_ = true;
-    thread_ = std::thread([this, cb]{ capture_loop(cb); });
+    thread_ = std::thread([this, cb]
+            {
+        capture_loop(cb);
+            });
     return true;
 }
 
-void CaptureX11::stop() {
+CaptureX11::~CaptureX11()
+{
+    stop();
+}
+
+void CaptureX11::stop()
+{
     running_ = false;
-    if (thread_.joinable()) thread_.join();
-    if (dpy_) {
+
+    if (thread_.joinable())
+        thread_.join();
+
+    if (dpy_)
+    {
         XShmDetach(dpy_, &shm_info_);
         XDestroyImage(shm_img_);
         shmdt(shm_info_.shmaddr);
@@ -45,10 +79,12 @@ void CaptureX11::stop() {
     }
 }
 
-void CaptureX11::capture_loop(FrameCallback cb) {
+void CaptureX11::capture_loop(FrameCallback cb)
+{
     constexpr int kFps = 60;
     const auto interval = std::chrono::microseconds(1000000 / kFps);
-    while (running_) {
+    while (running_)
+    {
         auto t0 = std::chrono::high_resolution_clock::now();
         XShmGetImage(dpy_, root_, shm_img_, 0, 0, AllPlanes);
 
@@ -67,4 +103,5 @@ void CaptureX11::capture_loop(FrameCallback cb) {
             std::this_thread::sleep_for(sleep);
     }
 }
+
 #endif

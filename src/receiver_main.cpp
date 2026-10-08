@@ -12,75 +12,97 @@
 static std::atomic<bool> g_run{true};
 static void on_signal(int) { g_run = false; }
 
-int main(int argc, char* argv[]) {
-    // 用法: receiver [port=5000]
-    uint16_t port = argc > 1 ? (uint16_t)std::stoi(argv[1]) : 5000;
+int main(int argc, char **argv)
+{
+    // Usage: receiver [port=5000]
+    uint16_t port{};
+    UdpReceiver udp;
+    DecoderFFmpeg decoder;
+
     signal(SIGINT,  on_signal);
     signal(SIGTERM, on_signal);
 
-    std::cout << "Receiver: port=" << port << "\n";
+    if (argc > 1)
+        port = (uint16_t)std::stoi(argv[1]);
+    else
+        port = 5000;
 
-    UdpReceiver udp;
-    if (!udp.init(port)) { std::cerr << "udp init failed\n"; return 1; }
+    std::cout << "Receiver: port=" << port << std::endl;
 
-    DecoderFFmpeg decoder;
-    if (!decoder.init()) { std::cerr << "decoder init failed\n"; return 1; }
+    if (!udp.init(port))
+    {
+        std::cerr << "udp init failed" << std::endl;
+        return 1;
+    }
 
-    // 解码线程 → 主渲染线程的帧队列
-    // 容量减小到 2，降低队列尾部排队带来的延迟
+    if (!decoder.init())
+    {
+        std::cerr << "decoder init failed" << std::endl;
+        return 1;
+    }
+
+    // Frame queue from the decoding thread to the main rendering thread
+    // Capacity reduced to 2 to minimize latency caused by queuing at the end of the queue
     BlockingQueue<RawFramePtr> fq(2);
 
-    udp.start([&](EncodedPacketPtr pkt) {
-        decoder.decode(std::move(pkt), [&](RawFramePtr f) {
-            // 解码完成的原始帧推入队列
+    udp.start([&](EncodedPacketPtr pkt)
+    {
+        decoder.decode(std::move(pkt), [&](RawFramePtr f)
+        {
+            // Push the decoded raw frame into the queue
             fq.push(f);
         });
     });
 
-    // 渲染必须在主线程（SDL2 要求）
+    // Rendering must take place on the main thread (required by SDL2)
     RendererSDL renderer;
     bool inited = false;
     uint32_t cnt = 0;
 
-    while (g_run) {
-        if (!renderer.poll_events()) break;
+    while (g_run)
+    {
+        if (!renderer.poll_events())
+            break;
 
-        // 尝试在 10ms 内取到一帧
+        // Attempt to capture a frame within 10ms
         auto opt = fq.pop(1);
-        if (!opt) {
-            // 当前没有新帧，继续处理事件
+        if (!opt)
+            // No new frame; continue processing events.
             continue;
-        }
 
-        // 先拿到一帧
+        // Get a frame first
         RawFramePtr latest = *opt;
 
-        // 为了降低延迟：如果队列中还有更多帧，则把旧帧“吃掉”，只保留最新的那一帧
-        // 这里受限于 BlockingQueue 只有阻塞 pop(timeout) 接口，
-        // 无法完全非阻塞，但可以用一个很小的超时多尝试几次。
-        while (true) {
-            auto opt_more = fq.pop(0);  // 如果你的 BlockingQueue 不允许 0，可改成 1~2ms
-            if (!opt_more) break;
+        // To reduce latency: If there are additional frames in the queue, discard the older ones and retain only the latest frame.
+        // Since BlockingQueue only provides a blocking pop(timeout) method,
+        // a fully non-blocking approach isn't possible; however, we can attempt the operation multiple times using a very short timeout.
+        while (true)
+        {
+            auto opt_more = fq.pop(0);  // If your BlockingQueue does not allow 0, you can change it to 1–2 ms.
+            if (!opt_more)
+                break;
             latest = *opt_more;
         }
 
         auto& f = latest;
 
-        if (!inited) {
+        if (!inited)
+        {
             renderer.init(f->width, f->height, "LanStream Receiver");
             inited = true;
         }
 
-        if (cnt++ % 60 == 0) {
+        if (cnt++ % 60 == 0)
+        {
             double e2e = (now_us() - f->timestamp_us) / 1000.0;
             std::cout << "frame=" << cnt
-                      << " e2e_ms=" << e2e << "\n";
+                      << " e2e_ms=" << e2e << std::endl;
         }
         renderer.render(f);
     }
 
     udp.stop();
     fq.close();
-    std::cout << "receiver stopped.\n";
+    std::cout << "receiver stopped." << std::endl;
     return 0;
 }

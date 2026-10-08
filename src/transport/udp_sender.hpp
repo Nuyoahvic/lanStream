@@ -4,9 +4,10 @@
 #include "transport/protocol.hpp"
 #include <string>
 
-class UdpSender {
+class UdpSender
+{
 public:
-    ~UdpSender() { close(); }
+    ~UdpSender();
     bool init(const std::string& ip, uint16_t port);
     void send(const EncodedPacketPtr& pkt);
     void close();

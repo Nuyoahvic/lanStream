@@ -2,7 +2,8 @@
 #include "common/frame.hpp"
 #include <functional>
 
-class IEncoder {
+class IEncoder
+{
 public:
     using PacketCallback = std::function<void(EncodedPacketPtr)>;
     virtual ~IEncoder() = default;
